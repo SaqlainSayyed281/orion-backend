@@ -1,6 +1,7 @@
 {
   "name": "orion-backend",
   "version": "1.0.0",
+  "type": "module",
   "description": "Backend for ORION AI Voice Assistant",
   "main": "dist/server.js",
   "scripts": {
@@ -43,6 +44,7 @@
     "nodemon": "^3.0.3",
     "prettier": "^3.2.5",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.57.1"
   }
