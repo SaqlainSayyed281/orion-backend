@@ -1,15 +1,15 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
+import 'dotenv/config';
+import express, { Application, Request, Response, NextFunction } from 'express';
+import cors from 'cors';
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+const app: Application = express();
+const PORT: number = parseInt(process.env.PORT || '3000', 10);
 
 app.use(cors());
 app.use(express.json());
 
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
@@ -18,9 +18,9 @@ app.get('/health', (req, res) => {
 // app.use('/api/chat', require('./routes/chat'));
 
 // Error handling
-app.use((err, req, res, next) => {
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err.stack);
-  res.status(err.status || 500).json({
+  res.status((err as any).status || 500).json({
     error: err.message || 'Internal server error'
   });
 });
