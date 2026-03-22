@@ -18,9 +18,9 @@ app.get('/health', (_req: Request, res: Response) => {
 // app.use('/api/chat', require('./routes/chat'));
 
 // Error handling
-app.use((err: Error & { status?: number }, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err.stack);
-  res.status(err.status || 500).json({
+  res.status((err as any).status || 500).json({
     error: err.message || 'Internal server error'
   });
 });
