@@ -28,6 +28,21 @@ export const messageRepository = {
     return rows;
   },
 
+  async findPaginated(userId: number, limit: number, offset: number) {
+    const { rows: messages } = await pool.query(
+      `SELECT * FROM messages
+       WHERE user_id = $1
+       ORDER BY created_at ASC
+       LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
+    );
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*) FROM messages WHERE user_id = $1`,
+      [userId]
+    );
+    return { messages, total: parseInt(countRows[0].count) };
+  },
+
   async findRecent(userId: number, limit: number = 20) {
     const { rows } = await pool.query(
       `SELECT * FROM messages

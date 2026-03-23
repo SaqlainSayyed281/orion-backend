@@ -2,29 +2,48 @@ import { Response } from 'express';
 import { AuthRequest } from '../types/auth.types.js';
 import { groqService } from '../services/index.js';
 import { messageRepository } from '../repositories/index.js';
+import rateLimit from 'express-rate-limit';
+
+export const chatRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // 20 requests per minute per IP — stays under Groq's 30/min
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please slow down.' },
+});
+
+const VALID_MESSAGE_TYPES = ['text', 'voice'] as const;
+type MessageType = (typeof VALID_MESSAGE_TYPES)[number];
 
 export const chatController = {
   async send(req: AuthRequest, res: Response): Promise<void> {
-    const { text, type = 'text' } = req.body;
+    const { text, type: rawType = 'text' } = req.body;
     const userId = req.user!.userId;
 
-    if (!text || typeof text !== 'string') {
-      res.status(400).json({ error: 'text field is required' });
+    if (!text || typeof text !== 'string' || text.trim().length === 0) {
+      res.status(400).json({ error: 'text field is required and must be non-empty' });
       return;
     }
+
+    if (text.length > 4000) {
+      res.status(400).json({ error: 'text exceeds maximum length of 4000 characters' });
+      return;
+    }
+
+    const type: MessageType = VALID_MESSAGE_TYPES.includes(rawType) ? rawType : 'text';
 
     const start = Date.now();
 
     // Save user message
-    await messageRepository.create(userId, 'user', text, type);
+    await messageRepository.create(userId, 'user', text.trim(), type);
 
     // Fetch last 10 messages for context
     const history = await messageRepository.findRecent(userId, 10);
 
-    // Call Groq
-    const { content, tokensUsed } = await groqService.chat(
+    // Call Groq — exclude the message we just saved (last item)
+    const { content, tokensUsed, model } = await groqService.chat(
       history.slice(0, -1).map((m: any) => ({ role: m.role, content: m.content })),
-      text
+      text.trim()
     );
 
     const processingTimeMs = Date.now() - start;
@@ -46,25 +65,24 @@ export const chatController = {
         content: assistantMessage.content,
         createdAt: assistantMessage.created_at,
       },
-      metadata: { tokensUsed, processingTime: processingTimeMs },
+      metadata: { tokensUsed, processingTime: processingTimeMs, model },
     });
   },
 
   async getHistory(req: AuthRequest, res: Response): Promise<void> {
     const userId = req.user!.userId;
-    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
-    const offset = parseInt(req.query.offset as string) || 0;
+    const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 50, 1), 100);
+    const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
 
-    const messages = await messageRepository.findByUserId(userId);
-    const paginated = messages.slice(offset, offset + limit);
+    const { messages, total } = await messageRepository.findPaginated(userId, limit, offset);
 
     res.json({
-      messages: paginated,
+      messages,
       pagination: {
         limit,
         offset,
-        total: messages.length,
-        hasMore: offset + limit < messages.length,
+        total,
+        hasMore: offset + limit < total,
       },
     });
   },
@@ -74,9 +92,9 @@ export const chatController = {
     const { messageIds, clearAll } = req.body;
 
     if (clearAll) {
-      const all = await messageRepository.findByUserId(userId);
-      await Promise.all(all.map((m: any) => messageRepository.delete(m.id, userId)));
-      res.json({ deleted: all.length, message: `Successfully deleted ${all.length} message(s)` });
+      const { messages } = await messageRepository.findPaginated(userId, 1000, 0);
+      await Promise.all(messages.map((m: any) => messageRepository.delete(m.id, userId)));
+      res.json({ deleted: messages.length, message: `Successfully deleted ${messages.length} message(s)` });
       return;
     }
 
