@@ -1,16 +1,22 @@
 import 'dotenv/config';
-import express, { Application, Request, Response, NextFunction } from 'express';
+import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import pool from './config/database.js';
 import { healthService } from './services/index.js';
+import { errorHandler } from './middleware/error.middleware.js';
+import authRoutes from './routes/auth.routes.js';
+import chatRoutes from './routes/chat.routes.js';
 
 const app: Application = express();
 const PORT: number = parseInt(process.env.PORT || '3000', 10);
 
-app.use(cors());
+// Middleware
+app.use(helmet());
+app.use(cors({ origin: process.env.MOBILE_APP_URL || '*' }));
 app.use(express.json());
 
-// Health check
+// Health
 app.get('/health', async (_req: Request, res: Response) => {
   const dbAlive = await healthService.checkDatabase();
   res.json({
@@ -20,27 +26,20 @@ app.get('/health', async (_req: Request, res: Response) => {
   });
 });
 
-// Routes (will be added)
-// app.use('/api/auth', authRoutes);
-// app.use('/api/chat', chatRoutes);
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/chat', chatRoutes);
 
-// Error handling
-app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err.stack);
-  res.status((err as any).status || 500).json({
-    error: err.message || 'Internal server error',
-  });
-});
+// Global error handler — must be last
+app.use(errorHandler);
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('SIGTERM received. Closing DB pool...');
   await pool.end();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-  console.log('SIGINT received. Closing DB pool...');
   await pool.end();
   process.exit(0);
 });
