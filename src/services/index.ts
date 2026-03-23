@@ -1,2 +1,1 @@
-// Services barrel export
-// Add service exports here as they are created
+export { healthService } from './healthService.js';
