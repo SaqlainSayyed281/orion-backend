@@ -13,7 +13,7 @@ on:
 
 jobs:
   build:
-    name: Build Docker Image on Nitro Server
+    name: Build & Push Docker Image via Nitro Server
     runs-on: ubuntu-latest
 
     steps:
@@ -26,17 +26,35 @@ jobs:
             echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: SSH into Nitro Server and Build Image
+      - name: SSH into Nitro Server — Build & Push Image
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.NITRO_HOST }}
           username: ${{ secrets.NITRO_USER }}
           key: ${{ secrets.NITRO_SSH_KEY }}
+          envs: DOCKER_USERNAME,DOCKER_TOKEN
           script: |
             cd ~/orion-backend
             git fetch --all
             git checkout ${{ steps.vars.outputs.branch }}
             git pull origin ${{ steps.vars.outputs.branch }}
+
+            echo "[ORION] Building Docker image..."
             docker build -t orion-backend:${{ steps.vars.outputs.branch }} .
-            echo "[ORION] Docker image built successfully."
-            docker images orion-backend
+
+            echo "[ORION] Logging into Docker Hub..."
+            echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
+            echo "[ORION] Tagging image..."
+            docker tag orion-backend:${{ steps.vars.outputs.branch }} $DOCKER_USERNAME/orion-backend:${{ steps.vars.outputs.branch }}
+            docker tag orion-backend:${{ steps.vars.outputs.branch }} $DOCKER_USERNAME/orion-backend:latest
+
+            echo "[ORION] Pushing to Docker Hub..."
+            docker push $DOCKER_USERNAME/orion-backend:${{ steps.vars.outputs.branch }}
+            docker push $DOCKER_USERNAME/orion-backend:latest
+
+            echo "[ORION] Done. Image pushed to Docker Hub."
+            docker logout
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
