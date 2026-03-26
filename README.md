@@ -226,4 +226,4 @@ curl -X GET http://localhost:3000/chat/history \
 
 ---
 
-*Built by [Nielless Acharya](https://github.com/chiku0210)*
+<h3 align="center">Built by <a href="https://github.com/chiku0210">Nielless Acharya</a></h3>
