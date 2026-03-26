@@ -5,6 +5,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: true
+        default: 'main'
 
 jobs:
   build:
@@ -12,6 +17,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Resolve branch name
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "branch=${{ github.event.inputs.branch }}" >> $GITHUB_OUTPUT
+          else
+            echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
       - name: SSH into Nitro Server and Build Image
         uses: appleboy/ssh-action@v1
         with:
@@ -20,7 +34,9 @@ jobs:
           key: ${{ secrets.NITRO_SSH_KEY }}
           script: |
             cd ~/orion-backend
-            git pull origin main
-            docker build -t orion-backend:latest .
+            git fetch --all
+            git checkout ${{ steps.vars.outputs.branch }}
+            git pull origin ${{ steps.vars.outputs.branch }}
+            docker build -t orion-backend:${{ steps.vars.outputs.branch }} .
             echo "[ORION] Docker image built successfully."
             docker images orion-backend
