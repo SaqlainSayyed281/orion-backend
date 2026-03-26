@@ -1,0 +1,79 @@
+name: Docker Image Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from'
+        required: true
+        default: 'main'
+
+jobs:
+  build:
+    name: Build & Push Docker Image via Nitro Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve branch name
+        id: vars
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "branch=${{ github.event.inputs.branch }}" >> $GITHUB_OUTPUT
+          else
+            echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: SSH into Nitro Server — Build & Push Image
+        id: build
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.NITRO_HOST }}
+          username: ${{ secrets.NITRO_USER }}
+          key: ${{ secrets.NITRO_SSH_KEY }}
+          script: |
+            cd ~/orion-backend
+            git fetch --all
+            git checkout ${{ steps.vars.outputs.branch }}
+            git pull origin ${{ steps.vars.outputs.branch }}
+
+            echo "[ORION] Building Docker image..."
+            docker build -t orion-backend:${{ steps.vars.outputs.branch }} .
+
+            echo "[ORION] Logging into Docker Hub..."
+            echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
+
+            echo "[ORION] Tagging image..."
+            docker tag orion-backend:${{ steps.vars.outputs.branch }} $DOCKER_USERNAME/orion-backend:${{ steps.vars.outputs.branch }}
+            docker tag orion-backend:${{ steps.vars.outputs.branch }} $DOCKER_USERNAME/orion-backend:latest
+
+            echo "[ORION] Pushing to Docker Hub..."
+            docker push $DOCKER_USERNAME/orion-backend:${{ steps.vars.outputs.branch }}
+            docker push $DOCKER_USERNAME/orion-backend:latest
+
+            docker logout
+        env:
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Write Build Summary
+        run: |
+          BRANCH="${{ steps.vars.outputs.branch }}"
+          USERNAME="${{ secrets.DOCKER_USERNAME }}"
+          IMAGE="$USERNAME/orion-backend"
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          COMMIT="${{ github.sha }}"
+          SHORT_COMMIT="${COMMIT:0:7}"
+
+          echo "## ORION Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`$IMAGE\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch** | \`$BRANCH\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`$SHORT_COMMIT\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tags pushed** | \`$IMAGE:$BRANCH\` \`$IMAGE:latest\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Built at** | $TIMESTAMP |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Docker Hub** | https://hub.docker.com/r/$IMAGE |" >> $GITHUB_STEP_SUMMARY
