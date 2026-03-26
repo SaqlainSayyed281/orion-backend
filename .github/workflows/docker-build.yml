@@ -27,12 +27,12 @@ jobs:
           fi
 
       - name: SSH into Nitro Server — Build & Push Image
+        id: build
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.NITRO_HOST }}
           username: ${{ secrets.NITRO_USER }}
           key: ${{ secrets.NITRO_SSH_KEY }}
-          envs: DOCKER_USERNAME,DOCKER_TOKEN
           script: |
             cd ~/orion-backend
             git fetch --all
@@ -53,8 +53,27 @@ jobs:
             docker push $DOCKER_USERNAME/orion-backend:${{ steps.vars.outputs.branch }}
             docker push $DOCKER_USERNAME/orion-backend:latest
 
-            echo "[ORION] Done. Image pushed to Docker Hub."
             docker logout
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+
+      - name: Write Build Summary
+        run: |
+          BRANCH="${{ steps.vars.outputs.branch }}"
+          USERNAME="${{ secrets.DOCKER_USERNAME }}"
+          IMAGE="$USERNAME/orion-backend"
+          TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          COMMIT="${{ github.sha }}"
+          SHORT_COMMIT="${COMMIT:0:7}"
+
+          echo "## ORION Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|---|---|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Image** | \`$IMAGE\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Branch** | \`$BRANCH\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`$SHORT_COMMIT\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Tags pushed** | \`$IMAGE:$BRANCH\` \`$IMAGE:latest\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Built at** | $TIMESTAMP |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Docker Hub** | https://hub.docker.com/r/$IMAGE |" >> $GITHUB_STEP_SUMMARY
