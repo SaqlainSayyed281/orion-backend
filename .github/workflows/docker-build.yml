@@ -14,7 +14,7 @@ on:
 jobs:
   build:
     name: Build & Push Docker Image via Nitro Server
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Resolve branch name
@@ -26,37 +26,31 @@ jobs:
             echo "branch=${{ github.ref_name }}" >> $GITHUB_OUTPUT
           fi
 
-      - name: SSH into Nitro Server — Build & Push Image
-        id: build
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.NITRO_HOST }}
-          username: ${{ secrets.NITRO_USER }}
-          key: ${{ secrets.NITRO_SSH_KEY }}
-          script: |
-            cd ~/orion-backend
-            git fetch --all
-            git checkout ${{ steps.vars.outputs.branch }}
-            git pull origin ${{ steps.vars.outputs.branch }}
+      - name: Checkout & Pull Branch
+        run: |
+          cd ~/orion-backend
+          git fetch --all
+          git checkout ${{ steps.vars.outputs.branch }}
+          git pull origin ${{ steps.vars.outputs.branch }}
 
-            echo "[ORION] Building Docker image..."
-            docker build -t orion-backend:${{ steps.vars.outputs.branch }} .
+      - name: Build Docker Image
+        run: |
+          cd ~/orion-backend
+          docker build -t orion-backend:${{ steps.vars.outputs.branch }} .
 
-            echo "[ORION] Logging into Docker Hub..."
-            echo "$DOCKER_TOKEN" | docker login -u "$DOCKER_USERNAME" --password-stdin
+      - name: Push to Docker Hub
+        run: |
+          echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
-            echo "[ORION] Tagging image..."
-            docker tag orion-backend:${{ steps.vars.outputs.branch }} $DOCKER_USERNAME/orion-backend:${{ steps.vars.outputs.branch }}
-            docker tag orion-backend:${{ steps.vars.outputs.branch }} $DOCKER_USERNAME/orion-backend:latest
+          docker tag orion-backend:${{ steps.vars.outputs.branch }} \
+            ${{ secrets.DOCKER_USERNAME }}/orion-backend:${{ steps.vars.outputs.branch }}
+          docker tag orion-backend:${{ steps.vars.outputs.branch }} \
+            ${{ secrets.DOCKER_USERNAME }}/orion-backend:latest
 
-            echo "[ORION] Pushing to Docker Hub..."
-            docker push $DOCKER_USERNAME/orion-backend:${{ steps.vars.outputs.branch }}
-            docker push $DOCKER_USERNAME/orion-backend:latest
+          docker push ${{ secrets.DOCKER_USERNAME }}/orion-backend:${{ steps.vars.outputs.branch }}
+          docker push ${{ secrets.DOCKER_USERNAME }}/orion-backend:latest
 
-            docker logout
-        env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+          docker logout
 
       - name: Write Build Summary
         run: |
