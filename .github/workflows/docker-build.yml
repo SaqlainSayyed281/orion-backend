@@ -40,22 +40,22 @@ jobs:
 
       - name: Push to Docker Hub
         run: |
-          echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ vars.DOCKER_USERNAME }}" --password-stdin
 
           docker tag orion-backend:${{ steps.vars.outputs.branch }} \
-            ${{ secrets.DOCKER_USERNAME }}/orion-backend:${{ steps.vars.outputs.branch }}
+            ${{ vars.DOCKER_USERNAME }}/orion-backend:${{ steps.vars.outputs.branch }}
           docker tag orion-backend:${{ steps.vars.outputs.branch }} \
-            ${{ secrets.DOCKER_USERNAME }}/orion-backend:latest
+            ${{ vars.DOCKER_USERNAME }}/orion-backend:latest
 
-          docker push ${{ secrets.DOCKER_USERNAME }}/orion-backend:${{ steps.vars.outputs.branch }}
-          docker push ${{ secrets.DOCKER_USERNAME }}/orion-backend:latest
+          docker push ${{ vars.DOCKER_USERNAME }}/orion-backend:${{ steps.vars.outputs.branch }}
+          docker push ${{ vars.DOCKER_USERNAME }}/orion-backend:latest
 
           docker logout
 
       - name: Write Build Summary
         run: |
           BRANCH="${{ steps.vars.outputs.branch }}"
-          USERNAME="${{ secrets.DOCKER_USERNAME }}"
+          USERNAME="${{ vars.DOCKER_USERNAME }}"
           IMAGE="$USERNAME/orion-backend"
           TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
           COMMIT="${{ github.sha }}"
