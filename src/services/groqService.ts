@@ -1,4 +1,7 @@
 import Groq from 'groq-sdk';
+import { logger } from '../utils/logger.js';
+
+const CTX = 'GroqService';
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY!,
@@ -29,11 +32,13 @@ export const groqService = {
     ];
 
     const maxAttempts = 3;
+    logger.debug(CTX, 'Starting Groq chat request', { historyLength: history.length, maxAttempts });
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const model = attempt < maxAttempts - 1 ? PRIMARY_MODEL : FALLBACK_MODEL;
 
       try {
+        logger.debug(CTX, `Attempt ${attempt + 1} — calling model`, { model });
         const response = await groq.chat.completions.create({
           model,
           messages,
@@ -44,17 +49,22 @@ export const groqService = {
         const content = response.choices[0]?.message?.content ?? '';
         const tokensUsed = response.usage?.total_tokens ?? 0;
 
+        logger.info(CTX, 'Groq call successful', { model, tokensUsed, attempt: attempt + 1 });
         return { content, tokensUsed, model };
       } catch (err: any) {
         const isLast = attempt === maxAttempts - 1;
 
         if (isLast) {
-          console.error(`[GroqService] All ${maxAttempts} attempts failed.`, err.message);
+          logger.error(CTX, `All ${maxAttempts} attempts failed`, { error: err.message, model });
           throw err;
         }
 
         const backoffMs = 1000 * Math.pow(2, attempt);
-        console.warn(`[GroqService] Attempt ${attempt + 1} failed on ${model}. Retrying in ${backoffMs}ms...`);
+        logger.warn(CTX, `Attempt ${attempt + 1} failed on ${model} — retrying`, {
+          error: err.message,
+          backoffMs,
+          nextModel: attempt + 1 < maxAttempts - 1 ? PRIMARY_MODEL : FALLBACK_MODEL,
+        });
         await new Promise((r) => setTimeout(r, backoffMs));
       }
     }
