@@ -6,6 +6,18 @@ The server powering **ORION** — a voice-first Android AI assistant. Handles JW
 
 ---
 
+## Prerequisites
+
+Before running this project, ensure you have the following:
+
+- **Node.js** 20 LTS or higher — [Download](https://nodejs.org)
+- **npm** 9+ (bundled with Node.js)
+- **Neon PostgreSQL account** — [Sign up free](https://neon.tech) and create a new project to get your `DATABASE_URL`
+- **Groq API key** — [Get one free](https://console.groq.com) from the Groq console
+- **Git** — for cloning the repository
+
+---
+
 ## Stack
 
 | Layer | Tech |
@@ -45,30 +57,39 @@ orion-backend/
 
 ---
 
-## API Endpoints
+## Local Setup
 
-### Auth — `/auth`
+```bash
+# 1. Clone the repo
+git clone https://github.com/chiku0210/orion-backend.git
+cd orion-backend
 
-| Method | Route | Auth | Description |
-|---|---|---|---|
-| `POST` | `/auth/register` | ❌ | Register new user |
-| `POST` | `/auth/login` | ❌ | Login, returns JWT |
-| `POST` | `/auth/refresh` | ❌ | Refresh access token |
-| `POST` | `/auth/logout` | ✅ | Invalidate refresh token |
+# 2. Install dependencies
+npm install
 
-### Chat — `/chat`
+# 3. Configure environment
+cp .env.example .env
+# Edit .env with your Neon DATABASE_URL, JWT secrets, and Groq API key
 
-| Method | Route | Auth | Description |
-|---|---|---|---|
-| `POST` | `/chat/send` | ✅ | Send message, get LLM response |
-| `GET` | `/chat/history` | ✅ | Fetch conversation history |
-| `DELETE` | `/chat/history` | ✅ | Clear all chat history |
+# 4. Run database migrations
+npm run migrate
 
-### Transcription — `/transcribe`
+# 5. Start dev server
+npm run dev
+```
 
-| Method | Route | Auth | Description |
-|---|---|---|---|
-| `POST` | `/transcribe` | ✅ | Upload audio, returns transcript via Groq Whisper |
+---
+
+## Database Setup (Neon)
+
+1. Go to [neon.tech](https://neon.tech) and create a new project
+2. Copy the **connection string** from the Neon dashboard (it looks like `postgresql://user:password@host/dbname?sslmode=require`)
+3. Paste it as `DATABASE_URL` in your `.env` file
+4. Run migrations to initialize the schema:
+
+```bash
+npm run migrate
+```
 
 ---
 
@@ -98,23 +119,34 @@ GROQ_API_KEY=your_groq_api_key
 GROQ_MODEL=llama3-70b-8192
 ```
 
+> ⚠️ Never commit your `.env` file. It is already in `.gitignore`.
+
 ---
 
-## Local Setup
+## API Endpoints
 
-```bash
-# Install dependencies
-npm install
+### Auth — `/auth`
 
-# Run in dev mode (nodemon + ts-node)
-npm run dev
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `POST` | `/auth/register` | ❌ | Register new user |
+| `POST` | `/auth/login` | ❌ | Login, returns JWT |
+| `POST` | `/auth/refresh` | ❌ | Refresh access token |
+| `POST` | `/auth/logout` | ✅ | Invalidate refresh token |
 
-# Build for production
-npm run build
+### Chat — `/chat`
 
-# Start production build
-npm start
-```
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `POST` | `/chat/send` | ✅ | Send message, get LLM response |
+| `GET` | `/chat/history` | ✅ | Fetch conversation history |
+| `DELETE` | `/chat/history` | ✅ | Clear all chat history |
+
+### Transcription — `/transcribe`
+
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `POST` | `/transcribe` | ✅ | Upload audio, returns transcript via Groq Whisper |
 
 ---
 
@@ -127,6 +159,63 @@ npm start
 | `npm start` | Run compiled build |
 | `npm run lint` | ESLint check |
 | `npm run format` | Prettier format |
+
+---
+
+## Testing
+
+Manual API testing using `curl`:
+
+```bash
+# Register a new user
+curl -X POST http://localhost:3000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "test@example.com", "password": "Test@1234"}'
+
+# Login and capture token
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "test@example.com", "password": "Test@1234"}'
+
+# Send a chat message (replace <token> with your access token)
+curl -X POST http://localhost:3000/chat/send \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"message": "Hello ORION"}'
+
+# Fetch chat history
+curl -X GET http://localhost:3000/chat/history \
+  -H "Authorization: Bearer <token>"
+```
+
+> Automated test suite will be introduced in Phase 2 using Jest + Supertest.
+
+---
+
+## Troubleshooting
+
+**`ECONNREFUSED` or DB connection error**
+- Verify `DATABASE_URL` in `.env` is correct and includes `?sslmode=require`
+- Check your Neon project is active (free tier projects may sleep after inactivity — wake them from the dashboard)
+
+**`Invalid token` / `401 Unauthorized`**
+- Access tokens expire in 15 minutes by default. Use `/auth/refresh` with your refresh token to get a new one
+- Ensure you're passing the token as `Authorization: Bearer <token>` (not just the raw token)
+
+**`Cannot find module` after install**
+- Delete `node_modules` and `dist/`, then reinstall:
+  ```bash
+  rm -rf node_modules dist
+  npm install
+  ```
+
+**Groq API errors (`429 Too Many Requests`)**
+- You've hit Groq's free-tier rate limit. Wait a few seconds and retry
+- Check your `GROQ_API_KEY` is valid at [console.groq.com](https://console.groq.com)
+
+**Port already in use (`EADDRINUSE :3000`)**
+- Kill the existing process: `lsof -ti:3000 | xargs kill -9`
+- Or change `PORT` in `.env` to another value (e.g., `3001`)
 
 ---
 
