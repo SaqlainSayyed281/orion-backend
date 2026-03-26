@@ -1,0 +1,26 @@
+name: Docker Image Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Docker Image on Nitro Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: SSH into Nitro Server and Build Image
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.NITRO_HOST }}
+          username: ${{ secrets.NITRO_USER }}
+          key: ${{ secrets.NITRO_SSH_KEY }}
+          script: |
+            cd ~/orion-backend
+            git pull origin main
+            docker build -t orion-backend:latest .
+            echo "[ORION] Docker image built successfully."
+            docker images orion-backend
