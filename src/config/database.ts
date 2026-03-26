@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import { logger } from '../utils/logger.js';
 
 dotenv.config();
 
@@ -16,8 +17,12 @@ const pool = new Pool({
 });
 
 pool.on('error', (err) => {
-  console.error('Unexpected error on idle client', err);
+  logger.error('Database', 'Unexpected error on idle pg client', { error: err.message, stack: err.stack });
   process.exit(-1);
+});
+
+pool.on('connect', () => {
+  logger.debug('Database', 'New pg client connected to pool');
 });
 
 export default pool;
