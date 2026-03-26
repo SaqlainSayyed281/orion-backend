@@ -32,7 +32,7 @@ export const messageRepository = {
     const { rows: messages } = await pool.query(
       `SELECT * FROM messages
        WHERE user_id = $1
-       ORDER BY created_at ASC
+       ORDER BY created_at DESC
        LIMIT $2 OFFSET $3`,
       [userId, limit, offset]
     );
